@@ -4,10 +4,9 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const mongoose = require('mongoose');
-const md5 = require('md5');
-// const encrypt = require('mongoose-encryption');
+const bcrypt = require('bcrypt');
+saltRounds = 10;
 
-console.log(process.env.API_KEY);
 mongoose.connect('mongodb://localhost:27017/userDB', {useNewUrlParser: true});
 
 const userSchema = new mongoose.Schema({
@@ -16,7 +15,6 @@ const userSchema = new mongoose.Schema({
 });
 
 
-// userSchema.plugin(encrypt, {secret:process.env.SECRET, encryptedFields: ['password']});
 
 const User = new mongoose.model('User', userSchema);
 
@@ -39,30 +37,40 @@ app.get('/register', function(req, res){
 });
 
 app.post('/register', function(req, res){
-    const newUser= new User({
-        email: req.body.username,
-        password: md5(req.body.password)
+    bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+        const newUser= new User({
+            email: req.body.username,
+            password: hash
+        });
+    
+        newUser.save(function(err){
+        if(err){    
+            console.log(err);
+        } else{
+            res.render('secrets');
+        }
     });
-
-    newUser.save(function(err){
-    if(err){    
-        console.log(err);
-    } else{
-        res.render('secrets');
-    }
-});
+    })
+    
 });
 
 app.post('/login', function(req, res){
     const emailCheck = req.body.username;
-    const passwordCheck = md5(req.body.password);
+    const passwordCheck = req.body.password;
     User.findOne({email:emailCheck}, function(err, result){
         if(result){
-            if(result.password === passwordCheck){
-                res.render('secrets');
-            }
+            bcrypt.compare(passwordCheck, result.password, function(err,response){
+                if(response){
+                    res.render('secrets');
+                }else{
+                    res.redirect('/login');
+                }
+            })
+                
+           
         }else{
             console.log(err);
+            res.redirect('/register');
         }
     });
 });
